@@ -1,0 +1,24 @@
+services:
+  app:
+    build:
+      context: .
+      secrets:
+        - aws_public_key
+        - aws_private_key
+        - my_secret
+    ports:
+      - "5000:5000"
+    secrets:
+       - aws_public_key
+       - aws_private_key
+       - my_secret
+    environment:
+      - AWS_DEFAULT_REGION=us-east-2
+secrets:
+  my_secret:
+    file: ./my_secret.txt
+  aws_public_key:
+    file: ../aws_public_key.txt
+  aws_private_key:
+    file: ../aws_private_key.txt
+
