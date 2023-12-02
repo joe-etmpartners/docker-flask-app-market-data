@@ -7,6 +7,7 @@ RUN --mount=type=secret,id=aws_public_key cat /run/secrets/aws_public_key > /app
 RUN --mount=type=secret,id=aws_private_key cat /run/secrets/aws_private_key > /app/aws_private_key
 RUN python3 -m pip install --upgrade pip
 RUN python3 -m pip install --no-cache-dir -r requirements.txt
+RUN python3 -m pip install --index-url https://test.pypi.org/simple/ --no-deps etmawslib
 ENV FLASK_APP=mypython.py
 ENV FLASK_ENV=development
 ENV FLASK_RUN_HOST=0.0.0.0

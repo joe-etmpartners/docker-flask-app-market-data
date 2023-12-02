@@ -5,7 +5,7 @@ import logging
 import watchtower
 
 
-class ETM_AWS_Log(object):
+class ETM_AWS_Logger(object):
     """
     This class is used to log messages to AWS CloudWatch.
     """
