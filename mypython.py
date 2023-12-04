@@ -9,6 +9,9 @@ from ETMProcessManager import ETMProcess
 
 import rds_skywalker
 
+from loader_marketstack import Loader_MarketStack
+from loader_marketstack import loader_marketstack_test
+
 rds_skywalker.printVersion()
 
 
@@ -16,6 +19,8 @@ rds_skywalker.printVersion()
 etmLogger = ETM_AWS_Logger(1, 'MarketDataService')
 
 etmLogger.log('Starting mypython.py')
+
+loader_marketstack_test()
 
 # rdsCalendar = rds_skywalker.RDSCalendar()
 # rtn = rdsCalendar.getLastDate()

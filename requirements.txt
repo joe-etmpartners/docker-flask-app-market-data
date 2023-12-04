@@ -3,3 +3,4 @@ python-dotenv
 watchtower
 psycopg2
 sqlalchemy
+requests

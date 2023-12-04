@@ -7,8 +7,8 @@ import csv
 import os
 
 # Need to change this when we package up S3Skywalker
-from ..s3skywalker import S3Skywalker
-from ..ETM_AWS_Logger import ETM_AWS_Logger
+from s3skywalker import S3Skywalker
+from ETM_AWS_Logger import ETM_AWS_Logger
 
 
 import rds_skywalker
@@ -254,7 +254,7 @@ class Loader_MarketStack_Intraday(Loader_MarketStack_Generic):
      
 
         
-if __name__ == '__main__':
+def loader_marketstack_test():
     loader = Loader_MarketStack_Tickers({'exchange':'XCBO'})
     rtn = loader.fetchAllPages()
     print (rtn)
