@@ -4,17 +4,34 @@ import requests
 import json
 import datetime
 import csv
-from s3skywalker import S3Skywalker 
-from rdsskywalkercore import RDSSkywalker
-from rdsskywalkercore import RDSImportLog
+import os
+
+# Need to change this when we package up S3Skywalker
+from ..s3skywalker import S3Skywalker
+from ..ETM_AWS_Logger import ETM_AWS_Logger
+
+
+import rds_skywalker
+from rds_skywalker import RDSSkywalker
+
+
 
 params = {
   'access_key': '6a880b8488561bdb2b89c8f0482ff77b'
 }
 
 
-class Loader_MarketStack_Generic:
+class Loader_MarketStack_Generic():
     
+    def __init__(self, log_level = 1, app_name = 'MarketStack_Generic', additionalParams={}):
+        self.url = 'http://api.marketstack.com/v1/'+self.urlExtenion()
+        self.params = {'access_key': '6a880b8488561bdb2b89c8f0482ff77b'}
+        self.params.update(additionalParams)
+        self.params.update({'limit':1000})
+        self.params.update({'offset':0})
+        self.etmLogger = ETM_AWS_Logger(log_level=log_level, app_name=app_name)
+        self.etmLogger.log_debug('Initializing Loader_MarketStack_Generic')
+
     def urlExtenion(self):
         return('exchanges')
     
@@ -23,75 +40,104 @@ class Loader_MarketStack_Generic:
     
     def outFileExtension(self):
         return(self.urlExtenion())
-    
-    def __init__(self, additionalParams={}):
-        self.url = 'http://api.marketstack.com/v1/'+self.urlExtenion()
-        self.params = {'access_key': '6a880b8488561bdb2b89c8f0482ff77b'}
-        self.params.update(additionalParams)
-        self.params.update({'limit':1000})
-        self.params.update({'offset':0})
-        
-        #print (self.url)
-        #print (self.params
         
     def flatten_record(self, record):
         return(['base class output not defined',1,5,'strong with , comma'])
         
-    def save_csv(self):
+    def save_csv_to_s3(self):
         
         now = datetime.datetime.today().strftime('%Y%m%d%H%M%S%f')
-        
         basename = self.outFileExtension()
-        fname = 'C:\\projects\\data\\'+basename+'\\'+basename+now+'.csv'
+        fname = '\\data\\'+basename+'\\'+basename+now+'.csv'
         keyname = basename+'/'+basename+now+'.csv'
-        #print (fname)
+        
+        self.etmLogger.log_debug('Attempting to read '+fname+' to S3 as '+keyname)
+
         validRecordCount = 0
-        with open(fname, "w", newline='') as outfile:
-            spamwriter = csv.writer(outfile, dialect='excel')
-            for record in self.response['data']:
-                flat_record = self.flatten_record(record)
-                if flat_record is not None:
-                    spamwriter.writerow(flat_record)
-                    validRecordCount = validRecordCount + 1
+
+        try:
+            with open(fname, "w", newline='') as outfile:
+                spamwriter = csv.writer(outfile, dialect='excel')
+                for record in self.response['data']:
+                    flat_record = self.flatten_record(record)
+                    if flat_record is not None:
+                        spamwriter.writerow(flat_record)
+                        validRecordCount = validRecordCount + 1
+            self.etmLogger.log_debug('Success reading '+fname+' to S3 as '+keyname)
+
+        except:
+            self.etmLogger.log_exception('ERROR saving '+fname+' to S3 as '+keyname)
+            return(False)   
         
         if validRecordCount > 0:
-            s3 = S3Skywalker()
-            s3.upload_file(fname, keyname, basename)
+
+            self.etmLogger.log_debug('Attempting to upload '+fname+' to S3 as '+keyname)
+
+            try:
+                s3 = S3Skywalker()
+                s3.upload_file(fname, keyname, basename)
+            except:
+                self.etmLogger.log_exception('ERROR uploading '+fname+' to S3 as '+keyname)
+                return(False)
+
+            self.etmLogger.log_debug('Success uploading '+fname+' to S3 as '+keyname)
+
+        self.etmLogger.log_debug('Attempting to delete '+fname)
+        try:
+            os.remove(fname)
+        except:
+            self.etmLogger.log_exception('ERROR deleting '+fname)
+            return(False)
+        self.etmLogger.log_debug('Success deleting '+fname)
+
+        return(True)
+
+    def save_csv(self):
+        self.save_csv_to_s3(self)
 
     def save_json_multiple_entries(self):
         # Writing to sample.json
         now = datetime.datetime.today().strftime('%Y%m%d%H%M%S%f')
-        
         basename = self.outFileExtension()
         fname = 'C:\\projects\\data\\'+basename+'\\'+basename+now+'.json'
-        print (fname)
-        with open(fname, "w") as outfile:
-            for record in self.response['data']:
-                json_string = json.dumps(record, indent=4)
-                #print (json_string)
-                outfile.write(json_string)
-                outfile.write('\n')
         
-        
+        self.etmLogger.log_debug('Attempting to write JSON to file as '+fname)
+
+        try:
+            with open(fname, "w") as outfile:
+                for record in self.response['data']:
+                    json_string = json.dumps(record, indent=4)
+                    #print (json_string)
+                    outfile.write(json_string)
+                    outfile.write('\n')
+            self.etmLogger.log_debug('Success writing JSON to file as '+fname)
+        except:
+            self.etmLogger.log_exception('ERROR writing JSON to file as '+fname)
+            return(False) 
+
+        return(True)  
         
     def fetchNextPage(self):
-        self.result = requests.get(self.url,self.params)
-        self.response = self.result.json()
+
+        self.etmLogger.log_debug('Attempting to fetch next page')
+
+        try:
+            self.result = requests.get(self.url,self.params)
+            self.response = self.result.json()
+            self.etmLogger.log_debug('Success fetching next page')
+        except:
+            self.etmLogger.log_exception('ERROR fetching next page')
+            return(False)
         
-        #print (self.result)
-        #print (self.response)
+        self.etmLogger.log_debug('Result = ' + str(self.result))
+        self.etmLogger.log_debug('Response = ' + str(self.response))
         
         try:
             pageObj = self.response['pagination']
-            print (".",end="", flush=True)
         except:
-            print ("ERROR locating pagination record")
-            print (self.url)
-            print (self.params)
-            print (self.response)
+            self.etmLogger.log_exception('ERROR parsing response')
             return(False)
 
-        #self.save_json_multiple_entries()
         self.save_csv()
         
         if (pageObj['count'] < pageObj['limit']):
@@ -105,6 +151,8 @@ class Loader_MarketStack_Generic:
             continue
         
     def copyS3FileToDB(self, fileKey, tableName):
+        self.etmLogger.log_debug('Attempting to copy file from S3 to DB: '+fileKey) 
+
         sqlString = "SELECT aws_s3.table_import_from_s3(" + \
                     "'public." + tableName + "', " + \
                     "'', " + \
@@ -113,60 +161,83 @@ class Loader_MarketStack_Generic:
                     "'" + fileKey + "', " + \
                     "'us-east-2'" + \
                     ");"
-        #print (sqlString)
+        
         rdsSkywalker = RDSSkywalker()
+
         try:
+            self.etmLogger.log_debug('Attempting to run SQL: '+sqlString)
             rdsSkywalker.connectAndRunSQL(sqlString)
+            self.etmLogger.log_debug('Success running SQL: '+sqlString)
         except:
-            print("ERROR copying file to DB: "+sqlString)
+            self.etmLogger.log_exception('ERROR running SQL: '+sqlString)
+            return(False)
         
-        rdsImportLog = RDSImportLog()
-        rdsImportLog.setProcessedToTrue(fileKey)
+        # Need to figure out how to properly manage S3 files and import statuses using SQS et al
         
-    def copyAllNewFilesToDB(self):
-        loader = self.outFileExtension()
+        # rdsImportLog = RDSImportLog()
+        # rdsImportLog.setProcessedToTrue(fileKey)
+        return(True)
         
-        importLog = RDSImportLog()         
-        fileList = importLog.getListOfUnprocessedFiles(loader)
+    # def copyAllNewFilesToDB(self):
+    #     loader = self.outFileExtension()
         
-        tableName = self.importTableName()
+    #     importLog = RDSImportLog()         
+    #     fileList = importLog.getListOfUnprocessedFiles(loader)
         
-        for fileKey in fileList:
-            self.copyS3FileToDB(fileKey, tableName)
-            print("*",end="", flush=True)
+    #     tableName = self.importTableName()
+        
+    #     for fileKey in fileList:
+    #         self.copyS3FileToDB(fileKey, tableName)
+    #         print("*",end="", flush=True)
 
         
 class Loader_MarketStack_Tickers(Loader_MarketStack_Generic):
     
      def flatten_record(self, record):
          
-         #Only accept short and simple symbols (no OTC, preferred, warrants or other variants)
-         try:
-             f1 = record['name'].encode(encoding = 'ascii')[:1023]
-         except:
-             f1 = ''
+        #Only accept short and simple symbols (no OTC, preferred, warrants or other variants)
+        self.etmLogger.log_debug('Attempting to get ticker record components')
+        try:
+            ticker_name = record['name']
+            country = record['country']
+            ticker = record['symbol']
+            has_intraday = record['has_intraday']
+            has_eod = record['has_eod']
+            stock_exchange = record['stock_exchange']['mic']
+        except:
+            self.etmLogger.log_exception('ERROR getting record components')
+            return(None)
+
+        self.etmLogger.log_debug('Attempting to encode tickker name: '+str(record['name']))
+        try:
+            f1 = record['name'].encode(encoding = 'ascii')[:1023]
+        except:
+            self.etmLogger.error('ERROR encoding ticker name: '+str(record['name']) + ' as ascii. Setting to blank.')
+            f1 = ''
          
-         f2 = record['symbol']
-         if len(f2) > 5:
+        f2 = record['symbol']
+        if len(f2) > 5:
             return(None)
         
-         if ('-' in f2) or ('.' in f2) or (' ' in f2):
+        if ('-' in f2) or ('.' in f2) or (' ' in f2):
             return(None)
         
-         try:
-             f5 = record['country'].encode(encoding = 'ascii')[:31]
-         except:
-             f5 = ''
+        try:
+            self.etmLogger.log_debug('Attempting to get and encode country')
+            f5 = record['country'].encode(encoding = 'ascii')[:31]
+        except:
+            self.etmLogger.error('ERROR encoding country name: '+str(record['country']) + ' as ascii. Setting to blank.')
+            f5 = ''
 
          
-         mylist = [
+        mylist = [
             f1, f2,
             record['has_intraday'],
             record['has_eod'],
             f5,
             record['stock_exchange']['mic']
-             ]
-         return(mylist)
+            ]
+        return(mylist)
     
      def urlExtenion(self):
          return('tickers')
@@ -186,8 +257,8 @@ class Loader_MarketStack_Intraday(Loader_MarketStack_Generic):
 if __name__ == '__main__':
     loader = Loader_MarketStack_Tickers({'exchange':'XCBO'})
     rtn = loader.fetchAllPages()
-    #print (rtn)
-    loader.copyAllNewFilesToDB()
+    print (rtn)
+    #loader.copyAllNewFilesToDB()
 
     
     #loader = Loader_MarketStack_Generic()
