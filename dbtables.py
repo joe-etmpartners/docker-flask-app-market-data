@@ -12,6 +12,7 @@ from pprint import pprint
 
 import rds_skywalker
 from rds_skywalker import RDSSkywalker
+import pandas as pd
 
 import ticker_lists
 
@@ -112,6 +113,17 @@ class DBTables(object):
         rtn = {'columns':['symbol_id','symbol'],'data':rtndata}
         return rtn
     
+
+
+    def getTickersForGroup(self, group_name):
+        myRDS = RDSSkywalker()
+        sql = '''   SELECT id, group_id, symbol_id 
+                    FROM public.symbol_group_membership
+	                where group_id = 5'''
+        df = myRDS.getDataFrame(sql)
+        return df
+
+    
 if __name__ == '__main__':
     dbTables = DBTables()
     #allSymbols = dbTables.get_all_symbols()
@@ -119,7 +131,7 @@ if __name__ == '__main__':
 
     #dbTables.add_symbol_to_group('MARKETWATCH_DAILY_DOWNLOAD_LIST','AAPL')
 
-    test_symbols = dbTables.get_symbol_group('yahoo_currency_pairs')
+    test_symbols = dbTables.getTickersForGroup('yahoo_currency_pairs')
     pprint(test_symbols)
 
     # my_list = []

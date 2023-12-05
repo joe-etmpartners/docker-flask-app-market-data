@@ -4,3 +4,4 @@ watchtower
 psycopg2
 sqlalchemy
 requests
+pandas
