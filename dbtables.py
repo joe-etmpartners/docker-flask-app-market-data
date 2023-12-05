@@ -40,19 +40,17 @@ class DBTables(object):
         print (dir(self.Base.classes))
 
         self.symbolTable = self.Base.classes.symbols
-        #self.calendarTable = self.Base.classes.calendar
+        self.calendarTable = self.Base.classes.calendar
         self.symbolGroupsTable = self.Base.classes.symbol_groups
 
 
         # return self.Base.classes.symbols
 
-    def get_symbol_table(self):
-        return self.symbolTable
-    
+
 
     def get_all_symbols(self):
         rtndata = []
-        symbolTable = self.get_symbol_table()
+        symbolTable = self.symbolTable
         with Session(self.engine) as session:
             u1 = session.query(symbolTable).all()   
             for u in u1:
