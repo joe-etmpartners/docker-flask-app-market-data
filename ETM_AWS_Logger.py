@@ -96,6 +96,42 @@ class ETM_AWS_Logger(object):
         """
         self.logger.critical(msg)
 
+    def exception(self, msg):
+        """
+        Logs the exception.
+        """
+        self.logger.exception(msg)
+
+    def debug(self, msg):
+        """
+        Logs the debug message.
+        """
+        self.logger.debug(msg)
+
+    def info(self, msg):
+        """
+        Logs the info message.
+        """
+        self.logger.info(msg)
+
+    def warning(self, msg):
+        """
+        Logs the warning message.
+        """
+        self.logger.warning(msg)
+
+    def error(self, msg):
+        """
+        Logs the error message.
+        """
+        self.logger.error(msg)
+
+    def critical(self, msg):
+        """
+        Logs the critical message.
+        """
+        self.logger.critical(msg)
+
     def flush(self):
         """
         Force push the logs to CloudWatch.

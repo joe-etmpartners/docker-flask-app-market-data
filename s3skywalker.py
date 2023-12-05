@@ -34,6 +34,19 @@ class S3Skywalker():
             return(0)
         
         return(1)
+    
+    def upload_content(self, targetKey, loader, content):
+        s3_resource = boto3.resource('s3')
+        
+        # for bucket in s3_resource.buckets.all():
+        #     print(bucket.name)
+            
+        try: 
+            s3_resource.Bucket('s3-skywalker').put_object(Key=targetKey, Body=content)
+        except:
+            return(False)
+        
+        return(True)
         
 
 if __name__ == '__main__':
@@ -52,5 +65,6 @@ if __name__ == '__main__':
     print('\n\nTest upload of requirements.txt to S3')
     s3obj = S3Skywalker()
     s3obj.upload_file('requirements.txt', 'requirements.txt', 'S3SkywalkerTest')
+    s3obj.upload_content('contenttest.txt', 'S3SkywalkerTest', 'This is a test of the upload_content method')
 
 
