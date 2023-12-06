@@ -33,6 +33,8 @@ class Loader_MarketStack_Generic():
         self.etmLogger = self.etmLoggerObj.logger
         self.etmLogger.debug('Initializing Loader_MarketStack_Generic')
 
+        self.S3keynames = []
+
     def urlExtenion(self):
         return('exchanges')
     
@@ -45,7 +47,14 @@ class Loader_MarketStack_Generic():
     def flatten_record(self, record):
         return(['base class output not defined',1,5,'strong with , comma'])
         
+    def addS3Keyname(self, keyname):
+        self.S3keynames.append(keyname)
 
+    def getS3Keynames(self):
+        return(self.S3keynames)
+    
+    def clearS3Keynames(self):
+        self.S3keynames = []
     
     def push_contents_to_S3(self):
         
@@ -68,7 +77,7 @@ class Loader_MarketStack_Generic():
 
         except:
             self.etmLogger.exception('ERROR creating content for S3')
-            return(False)   
+            return(None)   
         
         if validRecordCount > 0:
 
@@ -77,9 +86,10 @@ class Loader_MarketStack_Generic():
             try:
                 s3 = S3Skywalker()
                 s3.upload_content(keyname, basename, content)
+                self.addS3Keyname(keyname)
             except:
                 self.etmLogger.exception('ERROR uploading content to S3 as '+keyname)
-                return(False)
+                return(None)
 
             self.etmLogger.debug('Success uploading content to S3 as '+keyname)
 
@@ -87,22 +97,24 @@ class Loader_MarketStack_Generic():
         return(True)
 
     
-        
     def fetchNextPage(self):
 
-        self.etmLogger.debug('Attempting to fetch next page')
-
+        self.etmLogger.debug('Attempting to fetch next page' + str(self.params))
+        
         try:
             self.result = requests.get(self.url,self.params)
             self.response = self.result.json()
-            self.etmLogger.debug('Success fetching next page')
+            self.etmLogger.debug('Success fetching next page' + str(self.response))
         except:
-            self.etmLogger.exception('ERROR fetching next page')
+            self.etmLogger.exception('ERROR fetching page')
             return(False)
         
-        self.etmLogger.debug('Result = ' + str(self.result))
-        self.etmLogger.debug('Response = ' + str(self.response))
-        
+
+        if 'error' in self.response:
+            self.etmLogger.error('ERROR msg from Marketstack  ' + str(self.response['error']))
+            print('ERROR msg from Marketstack  ' + str(self.response['error']))
+            return(False)
+
         try:
             pageObj = self.response['pagination']
         except:
@@ -112,8 +124,10 @@ class Loader_MarketStack_Generic():
         self.push_contents_to_S3()
         
         if (pageObj['count'] < pageObj['limit']):
+            self.etmLogger.debug('No more pages to fetch')
             return(False)
         else:
+            self.etmLogger.debug('More pages to fetch')
             self.params['offset'] = self.params['offset']+self.params['limit']
             return(True)
         
@@ -139,10 +153,14 @@ class Loader_MarketStack_Generic():
 
         try:
             self.etmLogger.debug('Attempting to run SQL: '+sqlString)
+            print('Attempting to run SQL: '+sqlString)
             rdsSkywalker.connectAndRunSQL(sqlString)
             self.etmLogger.debug('Success running SQL: '+sqlString)
-        except:
+            return(True)
+        except Exception as e:
             self.etmLogger.exception('ERROR running SQL: '+sqlString)
+            print('ERROR running SQL: '+sqlString)
+            print(e)
             return(False)
 
 

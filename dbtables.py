@@ -37,9 +37,6 @@ class DBTables(object):
 
         # # calling prepare() just sets up mapped classes and relationships.
         self.Base.prepare()
-
-        print (dir(self.Base.classes))
-
         self.symbolTable = self.Base.classes.symbols
         self.calendarTable = self.Base.classes.calendar
         self.symbolGroupsTable = self.Base.classes.symbol_groups
@@ -116,12 +113,29 @@ class DBTables(object):
 
 
     def getTickersForGroup(self, group_name):
-        myRDS = RDSSkywalker()
-        sql = '''   SELECT id, group_id, symbol_id 
-                    FROM public.symbol_group_membership
-	                where group_id = 5'''
-        df = myRDS.getDataFrame(sql)
-        return df
+        with Session(self.engine) as session:
+            sql = """   SELECT  sgm.id, sgm.group_id, sgm.symbol_id,
+                                s.symbol,
+                                sgg.group_name    
+                        FROM public.symbol_group_membership sgm
+                        JOIN public.symbol_groups sgg on sgm.group_id = sgg.group_id
+                        JOIN public.symbols s on sgm.symbol_id = s.symbol_id
+	                    where sgg.group_name = '{}'""".format(group_name)
+            df = pd.read_sql_query(sql, con=session.connection())
+
+            rtn = df['symbol'].tolist()
+            rtn = [x.strip() for x in rtn]
+        
+        return rtn
+    
+    def getLastDate(self):
+        with Session(self.engine) as session:
+            sql = '''   SELECT max(date_stamp) as last_date 
+                        FROM public.calendar'''
+            df = pd.read_sql_query(sql, con=session.connection())
+        last_date = df['last_date'][0]
+        return last_date
+
 
     
 if __name__ == '__main__':

@@ -38,20 +38,124 @@
 #    a. Check for missing dates
 #    b. Check for missing or out of whack data
 
-
-
-
-# 1. Get list of Marketwatch and Yahoo tickers to download
-
-from rds_skywalker import RDSSkywalker
+from dbtables import DBTables
 import pandas as pd
+from datetime import date
+import boto3
 
-def getTickersForGroup(group_name):
-    myRDS = RDSSkywalker()
-    sql = 'select ticker from symbols where eod = 1'
-    df = myRDS.getDataFrame(sql)
-    return df
+import timeit
+import time
 
+from loader_marketstack_eod import Loader_MarketStack_EOD
+
+
+# 1. Get list of Marketwatch tickers to download
+# 2. Get last date in database
+# 3. Download from Marketstack to staging table
+#    a. Download to S3 bucket
+
+def sendSQSMsg(queueName = 'MarketStack_EOD_NewS3File',msg='No message'):
+    # Get the service resource
+    sqs = boto3.resource('sqs')
+
+    # Get the queue. This returns an SQS.Queue instance
+    queue = sqs.get_queue_by_name(QueueName=queueName)
+
+    # You can now access identifiers and attributes
+    print(queue.url)
+    print(queue.attributes.get('DelaySeconds'))
+    # Create a new message
+    response = queue.send_message(MessageBody=msg)
+
+def getSQSMsg(queueName = 'MarketStack_EOD_NewS3File'):
+    # Get the service resource
+    sqs = boto3.resource('sqs')
+
+    # Get the queue. This returns an SQS.Queue instance
+    queue = sqs.get_queue_by_name(QueueName=queueName)
+
+    # Process messages by printing out body and optional author name
+    messages = queue.receive_messages(MaxNumberOfMessages=1,VisibilityTimeout=600,WaitTimeSeconds=5)
+
+    if len(messages) == 0:
+        print("No messages on queue")
+        return None
+    
+    message = messages[0]
+
+    print(message.body)
+
+    return (message)
+
+        # # Let the queue know that the message is processed
+        # message.delete()
+
+
+def fetchLatestMarketWatchEOD():
+    print("Entering updateMarketWatchEOD()", flush=True)
+    db = DBTables()
+    symbols = db.getTickersForGroup('MARKETWATCH_DAILY_DOWNLOAD_LIST')
+
+    lastDate = db.getLastDate()
+    dateFrom = str(lastDate)
+    today = date.today()
+    dateTo = str(today)
+
+    tic = time.perf_counter()
+
+    counter = 0
+
+    tickers = []
+    for ticker in symbols:
+        counter = counter + 1
+        print(ticker, flush=True)
+        tickers.append(ticker)
+        # print("tickers = ", tickers)
+        # print("counter = ", counter)
+        if counter % 50 == 0:
+            print("Modula 50 == 0", flush=True)
+            csv_tickers = ','.join(tickers)
+            eodParams = {'symbols':csv_tickers,
+                        'date_from':dateFrom,
+                        'date_to':dateTo
+                    }
+            loader = Loader_MarketStack_EOD(additionalParams=eodParams)
+            loader.fetchAllPages()
+            tickers = []
+            keyNames = loader.getS3Keynames()
+            print("keyNames = ", keyNames, flush=True)  
+            for keyName in keyNames:
+                sendSQSMsg(queueName = 'MarketStack_EOD_NewS3File',msg=keyName)
+            loader.clearS3Keynames()
+
+    toc = time.perf_counter()
+    print("Time difference:",(toc - tic)," seconds", flush=True)
+
+
+    return symbols
+
+def toStagingMarketWatchEOD():
+    print("Entering toStagingMarketWatchEOD()", flush=True)
+
+    loader = Loader_MarketStack_EOD()
+    tableName = loader.importTableName()
+    
+    while True:
+        message = getSQSMsg(queueName = 'MarketStack_EOD_NewS3File')
+        if message is None:
+            print("toStagingMarketWatchEOD: No messages on queue")
+            return
+        keyName = message.body
+        print("keyName = ", keyName, flush=True)
+        success = loader.copyS3FileToDB(fileKey=keyName, tableName=tableName)
+
+        if success:
+            print("Successfully copied file to staging table")
+            print("Deleting message from queue", flush=True)
+            message.delete()
+        else:
+            print("Failed to copy file to staging table")
+            print("Leaving message on queue", flush=True)
 
 
 # print ('Fetching latest Marketstack quotes...')
