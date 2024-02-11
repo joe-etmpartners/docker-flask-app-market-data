@@ -11,8 +11,9 @@ import rds_skywalker
 
 from loader_marketstack import loader_marketstack_test
 from loader_marketstack_eod import loader_marketstack_eod_test
-from loader_processes import fetchLatestMarketWatchEOD
-from loader_processes import toStagingMarketWatchEOD
+from loader_processes import fetchLatestMarketStackEOD
+from loader_processes import toStagingMarketStackEOD
+from loader_processes import updateMainTables
 
 
 rds_skywalker.printVersion()
@@ -22,10 +23,18 @@ print('Starting mypython.py', flush=True)
 
 etmLogger = ETM_AWS_Logger(1, 'MarketDataService')
 
-etmLogger.debug('Starting mypython.py')
+print('Starting mypython.py')
 
-fetchLatestMarketWatchEOD()
-toStagingMarketWatchEOD()
+print('Fetchiing latest market data')
+
+fetchLatestMarketStackEOD()
+
+print('Moving market data to staging')
+toStagingMarketStackEOD()
+
+print('Updating EOD tables')
+
+updateMainTables(fromDate='2024-01-01')
 
 etmLogger.flush()
 

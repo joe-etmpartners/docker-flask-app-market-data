@@ -5,6 +5,8 @@ from sqlalchemy.ext.automap import automap_base
 
 from sqlalchemy.exc import IntegrityError
 
+from sqlalchemy.sql import text
+
 from psycopg2 import OperationalError, errorcodes, errors
 from psycopg2.errors import UniqueViolation
 
@@ -113,6 +115,7 @@ class DBTables(object):
 
 
     def getTickersForGroup(self, group_name):
+        print('group_name',group_name)
         with Session(self.engine) as session:
             sql = """   SELECT  sgm.id, sgm.group_id, sgm.symbol_id,
                                 s.symbol,
@@ -121,6 +124,7 @@ class DBTables(object):
                         JOIN public.symbol_groups sgg on sgm.group_id = sgg.group_id
                         JOIN public.symbols s on sgm.symbol_id = s.symbol_id
 	                    where sgg.group_name = '{}'""".format(group_name)
+            print (sql)
             df = pd.read_sql_query(sql, con=session.connection())
 
             rtn = df['symbol'].tolist()
@@ -135,8 +139,57 @@ class DBTables(object):
             df = pd.read_sql_query(sql, con=session.connection())
         last_date = df['last_date'][0]
         return last_date
-
-
+    
+    def updateSymbols(self):
+        with Session(self.engine) as session:
+            sql = text('''   CALL update_symbols()''')
+            session.execute(sql)
+            session.commit()
+        return True
+    
+    def updateCalendar(self):
+        with Session(self.engine) as session:
+            sql = text('''   CALL update_calendar()''')
+            session.execute(sql)
+            session.commit()
+        return True
+    
+    def updateEODQuotes(self, fromDate='2000-01-01'):
+        with Session(self.engine) as session:
+            sql = text('''   CALL update_eod_quotes_marketstack_from_date('{}')'''.format(fromDate))
+            session.execute(sql)
+            session.commit()
+        return True
+    
+    def updateEODMovingAverageIndicators(self, fromDate='2000-01-01'):
+        with Session(self.engine) as session:
+            sql = text('''   CALL update_eod_moving_average_indicators_from_date('{}')'''.format(fromDate))
+            session.execute(sql)
+            session.commit()
+        return True
+    
+    def updateEODMovingAverageSlopes(self, fromDate='2000-01-01'):
+        with Session(self.engine) as session:
+            sql = text('''   CALL update_eod_moving_average_slopes_from_date('{}')'''.format(fromDate))
+            session.execute(sql)
+            session.commit()
+        return True
+    
+    def updateIndicatorStats(self):
+        with Session(self.engine) as session:
+            sql = text('''   CALL update_indicator_stats()''')
+            session.execute(sql)
+            session.commit()
+        return True
+    
+    def updateGauges(self, fromDate='2000-01-01', toDate='2029-12-01'):
+        with Session(self.engine) as session:
+            sql = text('''   CALL update_gauges_from_indicators_eod_by_date('{}','{}')'''.format(fromDate,toDate))
+            session.execute(sql)
+            session.commit()
+        return True
+    
+ 
     
 if __name__ == '__main__':
     dbTables = DBTables()

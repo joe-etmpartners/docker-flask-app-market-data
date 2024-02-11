@@ -47,6 +47,7 @@ import timeit
 import time
 
 from loader_marketstack_eod import Loader_MarketStack_EOD
+from loader_yahoo import Loader_Yahoo_EOD
 
 
 # 1. Get list of Marketwatch tickers to download
@@ -87,22 +88,32 @@ def getSQSMsg(queueName = 'MarketStack_EOD_NewS3File'):
 
     return (message)
 
-        # # Let the queue know that the message is processed
-        # message.delete()
 
 
-def fetchLatestMarketWatchEOD():
-    print("Entering updateMarketWatchEOD()", flush=True)
+def fetchLatestEOD(loader_class, group_name, queueName, dateFrom=None, dateTo=None):
+    print(f"Entering fetchLatestEOD({loader_class.__name__}, {group_name})", flush=True)
+    print("queueName = ", queueName, flush=True)
+    print("dateFrom = ", dateFrom, flush=True)
+    print("dateTo = ", dateTo, flush=True)
+    print("group_name = ", group_name, flush=True)
     db = DBTables()
-    symbols = db.getTickersForGroup('MARKETWATCH_DAILY_DOWNLOAD_LIST')
+    symbols = db.getTickersForGroup(group_name)
 
-    lastDate = db.getLastDate()
-    dateFrom = str(lastDate)
-    today = date.today()
-    dateTo = str(today)
+    print ("symbols = ", symbols, flush=True)
+
+    if dateFrom is None:
+        lastDate = db.getLastDate()
+        dateFrom = str(lastDate)
+
+    print("dateFrom = ", dateFrom, flush=True)
+
+    if dateTo is None:
+        today = date.today()
+        dateTo = str(today)
+
+    print("dateTo = ", dateTo, flush=True)
 
     tic = time.perf_counter()
-
     counter = 0
 
     tickers = []
@@ -110,40 +121,48 @@ def fetchLatestMarketWatchEOD():
         counter = counter + 1
         print(ticker, flush=True)
         tickers.append(ticker)
-        # print("tickers = ", tickers)
-        # print("counter = ", counter)
-        if counter % 50 == 0:
+        if (counter % 50 == 0 or counter == len(symbols)):
             print("Modula 50 == 0", flush=True)
             csv_tickers = ','.join(tickers)
             eodParams = {'symbols':csv_tickers,
                         'date_from':dateFrom,
                         'date_to':dateTo
                     }
-            loader = Loader_MarketStack_EOD(additionalParams=eodParams)
+            loader = loader_class(additionalParams=eodParams)
             loader.fetchAllPages()
             tickers = []
             keyNames = loader.getS3Keynames()
             print("keyNames = ", keyNames, flush=True)  
             for keyName in keyNames:
-                sendSQSMsg(queueName = 'MarketStack_EOD_NewS3File',msg=keyName)
+                sendSQSMsg(queueName = queueName, msg=keyName)
             loader.clearS3Keynames()
 
     toc = time.perf_counter()
-    print("Time difference:",(toc - tic)," seconds", flush=True)
-
-
+    print("Execution time:",(toc - tic)," seconds", flush=True)
     return symbols
 
-def toStagingMarketWatchEOD():
-    print("Entering toStagingMarketWatchEOD()", flush=True)
+def fetchLatestMarketStackEOD():
+    print("Entering fetchLatestMarketStackEOD()", flush=True)
+    fetchLatestEOD(Loader_MarketStack_EOD, 'MARKETWATCH_DAILY_DOWNLOAD_LIST', 'MarketStack_EOD_NewS3File')
 
-    loader = Loader_MarketStack_EOD()
+def fetchLatestYahooEOD():
+    fetchLatestEOD(Loader_Yahoo_EOD, 'yahoo_symbol_lists', 'Yahoo_EOD_NewS3File')
+
+
+def toStagingEOD(loader_class, queue_name):
+    print(f"Entering toStagingEOD({loader_class.__name__})", flush=True)
+
+    loader = loader_class()
     tableName = loader.importTableName()
     
+    tic = time.perf_counter()
+
     while True:
-        message = getSQSMsg(queueName = 'MarketStack_EOD_NewS3File')
+        message = getSQSMsg(queueName=queue_name)
         if message is None:
-            print("toStagingMarketWatchEOD: No messages on queue")
+            print(f"toStagingEOD: No messages on {queue_name} queue")
+            toc = time.perf_counter()
+            print("Execution time:", (toc - tic), " seconds", flush=True)
             return
         keyName = message.body
         print("keyName = ", keyName, flush=True)
@@ -157,39 +176,69 @@ def toStagingMarketWatchEOD():
             print("Failed to copy file to staging table")
             print("Leaving message on queue", flush=True)
 
+def toStagingMarketStackEOD():
+    toStagingEOD(Loader_MarketStack_EOD, 'MarketStack_EOD_NewS3File')
 
-# print ('Fetching latest Marketstack quotes...')
-#     updateMarketStackEOD(dateFrom, dateTo)
+def toStagingYahooEOD():
+    toStagingEOD(Loader_Yahoo_EOD, 'Yahoo_EOD_NewS3File')
+
     
-#     print ('Fetching latest Marketstack quotes...')
-#     updateYahooEOD(dateFrom, dateTo)
-    
-#     print('Updating symbol table...')
-#     myRDS.connectAndRunStoredProcedure('CALL update_symbols()')
-    
-#     print('Updating calendar table...')
-#     myRDS.connectAndRunStoredProcedure('CALL update_calendar()')
-    
-#     print('Updating EOD quotes from MarketWatch...')
-#     execString = "call update_eod_quotes_marketstack_from_date('{}')".format(dateFrom)
-#     myRDS.connectAndRunStoredProcedure(execString)
-    
-    
-#     print('Updating EOD quotes from Yahoo...')
-#     execString = "call update_eod_quotes_yahoo_from_date('{}')".format(dateFrom)
-#     myRDS.connectAndRunStoredProcedure(execString)
-    
-#     print('Updating EOD moving average indicators...')
-#     execString = "call update_eod_moving_average_indicators_from_date('{}')".format(dateFrom)
-#     myRDS.connectAndRunStoredProcedure(execString)
-    
-#     print('Updating EOD moving average slopes...')
-#     execString = "call update_eod_moving_average_slopes_from_date('{}')".format(dateFrom)
-#     myRDS.connectAndRunStoredProcedure(execString)
-    
-#     print('Updating indicator stats...')
-#     myRDS.connectAndRunStoredProcedure('call update_indicator_stats()')
-    
-#     print('Updating gauges...')
-#     execString = "call update_gauges_from_indicators_eod_by_date('{}','{}')".format(dateFrom,dateTo)
-#     myRDS.connectAndRunStoredProcedure(execString)    
+
+# 5. Update SYMBOLS
+# 6. Update CALENDAR table
+# 7. Update EOD_QUOTES table from Marketstack staging table
+# 8. Update EOD_QUOTES table from Yahoo staging table
+# 9. Update EOD_MOVING_AVERAGE_INDICATORS table
+# 10. Update EOD_MOVING_AVERAGE_SLOPES table
+# 11. Update INDICATOR_STATS table
+# 12. Update GAUGES table
+
+def updateMainTables(fromDate='2000-01-01', toDate='2024-12-30'):
+    print("", flush=True)
+    db = DBTables()
+
+    print("Updating SYMBOLS", flush=True)
+    tic = time.perf_counter()
+    db.updateSymbols()
+    toc = time.perf_counter()
+    print("Execution time:",(toc - tic)," seconds", flush=True)
+
+    print("Updating CALENDAR", flush=True)
+    tic = time.perf_counter()
+    db.updateCalendar()
+    toc = time.perf_counter()
+    print("Execution time:",(toc - tic)," seconds", flush=True)
+
+    print("Updating EOD_QUOTES", flush=True)
+    tic = time.perf_counter()
+    db.updateEODQuotes(fromDate=fromDate)
+    toc = time.perf_counter()
+    print("Execution time:",(toc - tic)," seconds", flush=True)
+
+    print("Updating EOD_MOVING_AVERAGE_INDICATORS", flush=True)
+    tic = time.perf_counter()
+    db.updateEODMovingAverageIndicators(fromDate=fromDate)
+    toc = time.perf_counter()
+    print("Execution time:",(toc - tic)," seconds", flush=True)
+
+    print("Updating EOD_MOVING_AVERAGE_SLOPES", flush=True)
+    tic = time.perf_counter()
+    db.updateEODMovingAverageSlopes(fromDate=fromDate)
+    toc = time.perf_counter()
+    print("Execution time:",(toc - tic)," seconds", flush=True)
+
+    print("Updating INDICATOR_STATS", flush=True)
+    tic = time.perf_counter()
+    db.updateIndicatorStats()
+    toc = time.perf_counter()
+    print("Execution time:",(toc - tic)," seconds", flush=True)
+
+    print("Updating GAUGES", flush=True)
+    tic = time.perf_counter()
+    db.updateGauges(fromDate=fromDate)
+    toc = time.perf_counter()
+    print("Execution time:",(toc - tic)," seconds", flush=True)
+
+
+
+

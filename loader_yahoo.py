@@ -7,9 +7,9 @@ Created on Thu Dec 29 13:57:53 2022
 import datetime
 #import csv
 from s3skywalker import S3Skywalker 
-from rdsskywalkercore import RDSSkywalker
-from rdsskywalkercore import RDSImportLog
-from rdsskywalkercore import RDSCalendar
+from rds_skywalker import RDSSkywalker
+from rds_skywalker import RDSImportLog
+from rds_skywalker import RDSCalendar
 
 from yahoo_fin.stock_info import get_data
 from ticker_lists import yahoo_symbol_lists
@@ -78,7 +78,8 @@ class Loader_Yahoo_Generic:
         #column_headers = list(self.yahoo_data.columns.values)
         #print("The Column Header :", column_headers)
 
-
+class Loader_Yahoo_EOD(Loader_Yahoo_Generic):
+    pass
 
     
 def updateYahooEOD(dateFrom = None, dateTo = None):
