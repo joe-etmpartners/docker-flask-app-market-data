@@ -12,6 +12,7 @@ import rds_skywalker
 from loader_marketstack import loader_marketstack_test
 from loader_marketstack_eod import loader_marketstack_eod_test
 from loader_processes import fetchLatestMarketStackEOD
+from loader_processes import fetchMissingMarketStackEOD
 from loader_processes import toStagingMarketStackEOD
 from loader_processes import updateMainTables
 
@@ -27,14 +28,16 @@ print('Starting mypython.py')
 
 print('Fetchiing latest market data')
 
-fetchLatestMarketStackEOD()
+# fetchLatestMarketStackEOD()
+
+fetchMissingMarketStackEOD(symbol='AA', fromDate='2005-01-01', toDate='2024-05-01')
 
 print('Moving market data to staging')
 toStagingMarketStackEOD()
 
 print('Updating EOD tables')
 
-updateMainTables(fromDate='2024-01-01')
+updateMainTables(fromDate='2001-01-01')
 
 etmLogger.flush()
 

@@ -88,6 +88,46 @@ def getSQSMsg(queueName = 'MarketStack_EOD_NewS3File'):
 
     return (message)
 
+def fetchMissingEOD(loader_class, symbol_name, queueName, dateFrom='2001-01-01', dateTo='2025-12-01'):
+    print(f"Entering fetchMissingEOD({loader_class.__name__}, {symbol_name})", flush=True)
+    print("queueName = ", queueName, flush=True)
+    print("dateFrom = ", dateFrom, flush=True)
+    print("dateTo = ", dateTo, flush=True)
+    print("symbol = ", symbol_name, flush=True)
+    db = DBTables()
+    symbols = [symbol_name]
+
+    print ("symbols = ", symbols, flush=True)
+    print("dateFrom = ", dateFrom, flush=True)
+    print("dateTo = ", dateTo, flush=True)
+
+    tic = time.perf_counter()
+    counter = 0
+
+    tickers = []
+    for ticker in symbols:
+        counter = counter + 1
+        print(ticker, flush=True)
+        tickers.append(ticker)
+        if (counter % 50 == 0 or counter == len(symbols)):
+            print("Modula 50 == 0", flush=True)
+            csv_tickers = ','.join(tickers)
+            eodParams = {'symbols':csv_tickers,
+                        'date_from':dateFrom,
+                        'date_to':dateTo
+                    }
+            loader = loader_class(additionalParams=eodParams)
+            loader.fetchAllPages()
+            tickers = []
+            keyNames = loader.getS3Keynames()
+            print("keyNames = ", keyNames, flush=True)  
+            for keyName in keyNames:
+                sendSQSMsg(queueName = queueName, msg=keyName)
+            loader.clearS3Keynames()
+
+    toc = time.perf_counter()
+    print("Execution time:",(toc - tic)," seconds", flush=True)
+    return symbols
 
 
 def fetchLatestEOD(loader_class, group_name, queueName, dateFrom=None, dateTo=None):
@@ -144,6 +184,10 @@ def fetchLatestEOD(loader_class, group_name, queueName, dateFrom=None, dateTo=No
 def fetchLatestMarketStackEOD():
     print("Entering fetchLatestMarketStackEOD()", flush=True)
     fetchLatestEOD(Loader_MarketStack_EOD, 'MARKETWATCH_DAILY_DOWNLOAD_LIST', 'MarketStack_EOD_NewS3File')
+
+def fetchMissingMarketStackEOD(symbol='A', fromDate='2000-01-01', toDate='2024-12-30'):
+    print("Entering fetchMissingMarketStackEOD()", flush=True)
+    fetchMissingEOD(Loader_MarketStack_EOD, symbol, 'MarketStack_EOD_NewS3File', fromDate, toDate)
 
 def fetchLatestYahooEOD():
     fetchLatestEOD(Loader_Yahoo_EOD, 'yahoo_symbol_lists', 'Yahoo_EOD_NewS3File')
@@ -215,29 +259,29 @@ def updateMainTables(fromDate='2000-01-01', toDate='2024-12-30'):
     toc = time.perf_counter()
     print("Execution time:",(toc - tic)," seconds", flush=True)
 
-    print("Updating EOD_MOVING_AVERAGE_INDICATORS", flush=True)
-    tic = time.perf_counter()
-    db.updateEODMovingAverageIndicators(fromDate=fromDate)
-    toc = time.perf_counter()
-    print("Execution time:",(toc - tic)," seconds", flush=True)
+    # print("Updating EOD_MOVING_AVERAGE_INDICATORS", flush=True)
+    # tic = time.perf_counter()
+    # db.updateEODMovingAverageIndicators(fromDate=fromDate)
+    # toc = time.perf_counter()
+    # print("Execution time:",(toc - tic)," seconds", flush=True)
 
-    print("Updating EOD_MOVING_AVERAGE_SLOPES", flush=True)
-    tic = time.perf_counter()
-    db.updateEODMovingAverageSlopes(fromDate=fromDate)
-    toc = time.perf_counter()
-    print("Execution time:",(toc - tic)," seconds", flush=True)
+    # print("Updating EOD_MOVING_AVERAGE_SLOPES", flush=True)
+    # tic = time.perf_counter()
+    # db.updateEODMovingAverageSlopes(fromDate=fromDate)
+    # toc = time.perf_counter()
+    # print("Execution time:",(toc - tic)," seconds", flush=True)
 
-    print("Updating INDICATOR_STATS", flush=True)
-    tic = time.perf_counter()
-    db.updateIndicatorStats()
-    toc = time.perf_counter()
-    print("Execution time:",(toc - tic)," seconds", flush=True)
+    # print("Updating INDICATOR_STATS", flush=True)
+    # tic = time.perf_counter()
+    # db.updateIndicatorStats()
+    # toc = time.perf_counter()
+    # print("Execution time:",(toc - tic)," seconds", flush=True)
 
-    print("Updating GAUGES", flush=True)
-    tic = time.perf_counter()
-    db.updateGauges(fromDate=fromDate)
-    toc = time.perf_counter()
-    print("Execution time:",(toc - tic)," seconds", flush=True)
+    # print("Updating GAUGES", flush=True)
+    # tic = time.perf_counter()
+    # db.updateGauges(fromDate=fromDate)
+    # toc = time.perf_counter()
+    # print("Execution time:",(toc - tic)," seconds", flush=True)
 
 
 
